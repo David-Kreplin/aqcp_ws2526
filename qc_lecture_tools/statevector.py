@@ -2,7 +2,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 import ipywidgets
-from ipywidgets import interact
+from ipywidgets import interact,interactive
 from IPython.display import display, Math
 import sympy
 from sympy import sqrt, sin, cos, pi, E, N
@@ -133,7 +133,7 @@ def sv_probs(quantum_circuit: QuantumCircuit, label:str=None):
 
     latex_str = "\\begin{array}{rcl}"
     for i,p in enumerate(probs):
-        latex_str += f"p_{{{i}}}" + r" & = & " 
+        latex_str += f"p_{{{i:0{quantum_circuit.num_qubits}b}}}" + r" & = & " 
         latex_str += format_complex(p) + " \\\\[1mm]"
     latex_str += "\\end{array}"
     return Math(latex_str)
@@ -160,6 +160,25 @@ def sv_blochsphere(quantum_circuit: QuantumCircuit):
     statevector = sv_compute(quantum_circuit)
     return statevector.draw('bloch')
 
+def sv_tensor(quantum_circuit_1: QuantumCircuit, quantum_circuit_2: QuantumCircuit):
+
+    """Compute the outer product of the statevectors of two quantum circuits.
+
+    Args:
+        quantum_circuit_1 (QuantumCircuit): The first quantum circuit to simulate.
+        quantum_circuit_2 (QuantumCircuit): The second quantum circuit to simulate.
+
+    Returns:
+        np.ndarray: The outer product of the statevectors of the two quantum circuits.
+    """
+
+    statevector_1 = sv_compute(quantum_circuit_1)
+    statevector_2 = sv_compute(quantum_circuit_2)
+
+    output_latex = r"\Bigg["+statevector_1.draw('latex_source')+ r"\Bigg] \otimes \Bigg[" + statevector_2.draw('latex_source') + r"\Bigg] = " + (statevector_1.tensor(statevector_2)).draw('latex_source')
+
+    return Math(output_latex)
+
 def sv_interactive_blochsphere(quantum_circuit: QuantumCircuit):
     """Draw the statevector of a quantum circuit interactively.
 
@@ -173,21 +192,37 @@ def sv_interactive_blochsphere(quantum_circuit: QuantumCircuit):
     if quantum_circuit.num_parameters == 0:
         return sv_blochsphere(quantum_circuit)
     
-
     sliders = {}
+    value_labels = {}
+    rows=[]
     for param in quantum_circuit.parameters:
         sliders[param.name] = ipywidgets.FloatSlider(
             value=0,
-            min=-2 * np.pi,
-            max=2 * np.pi,
+            min=-2,
+            max=2,
             step=0.1,
-            description=param.name
+            description=param.name,
+            continuous_update=True,
+            readout=False
         )
 
+        value_labels[param.name] = ipywidgets.HTMLMath(value=f"{sliders[param.name].value:.1f}π = {sliders[param.name].value * np.pi:.2f}")
+        update_value = lambda change, pn=param.name: setattr(value_labels[pn], "value", f"{change['new']:.1f}π = {change['new'] * np.pi:.2f}")
+
+        sliders[param.name].observe(update_value, names='value')
+
+        rows.append(ipywidgets.HBox([sliders[param.name],value_labels[param.name]],
+                layout=ipywidgets.Layout(align_items='center')))
+
+    controls = ipywidgets.VBox(rows)
+
     def plot_ry(**parameter_values):
-        param_dict = {param: parameter_values[param.name] for param in quantum_circuit.parameters}
-        return sv_blochsphere(quantum_circuit.assign_parameters(param_dict, inplace=False))
+        param_dict = {param: parameter_values[param.name]*np.pi for param in quantum_circuit.parameters}
+        qc_param = quantum_circuit.assign_parameters(param_dict, inplace=False)
+        return display(sv_blochsphere(qc_param))
 
-    frame = interact(plot_ry, **sliders)
 
-    return frame
+    out = ipywidgets.interactive_output(plot_ry, sliders)
+
+    ui = ipywidgets.VBox([controls, out])
+    return ui 

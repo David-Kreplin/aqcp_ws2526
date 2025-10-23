@@ -2,6 +2,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.primitives import BackendSamplerV2
 from qiskit_aer import Aer
+from qiskit_ibm_runtime.fake_provider import FakeManilaV2
 
 def sample_from_circuit(quantum_circuit: QuantumCircuit, num_shots:int) -> dict:
     """
@@ -21,12 +22,33 @@ def sample_from_circuit(quantum_circuit: QuantumCircuit, num_shots:int) -> dict:
     statevector_sampler = BackendSamplerV2(backend=backend, 
                                         options={'default_shots': num_shots})
 
+
+
     # Execute the quantum circuit with measurements
-    result = statevector_sampler.run([quantum_circuit]).result()
+    result = statevector_sampler.run([quantum_circuit.reverse_bits()]).result()
 
     # Output the measurement results
     shots_dict = result[0].data.c.get_counts()
     return shots_dict
+
+def measure_to_probability(measurements: dict) -> dict:
+    """
+    Takes the measurement counts as a dictionary and converts them to probabilities.
+    
+    Args:
+        measurements (dict): Dictionary with states as keys ans number of measurements
+            as values
+
+    Returns:
+        Dictionary converted to measured probabilities
+    """
+    if not isinstance(measurements,dict):
+        raise ValueError("Inputted measurements have to be a dictionary!")
+    probs = {}
+    total_counts = sum(measurements.values())
+    for state in measurements.keys():
+        probs[state] = measurements[state] / total_counts
+    return probs
 
 def sort_dict(shots_dict: dict):
     """
