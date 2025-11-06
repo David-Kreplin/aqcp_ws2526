@@ -2,7 +2,41 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.primitives import BackendSamplerV2
 from qiskit_aer import Aer
-from qiskit_ibm_runtime.fake_provider import FakeManilaV2
+from qiskit_ibm_runtime.fake_provider import FakeTorino
+
+
+def sample_from_circuit_hardware(quantum_circuit: QuantumCircuit, num_shots:int) -> dict:
+    """
+    Executes a quantum circuit with a specified number of measurements (shots)
+    and returns the measurement results as a dictionary.
+
+    Args:
+        quantum_circuit (QuantumCircuit): The quantum circuit to be executed.
+        num_shots (int): The number of measurements (shots) to be performed.
+
+    Returns:
+        dict: A dictionary with the measurement results.
+    """
+
+    # Initialize the sampler with 100 measurements (shots)
+    backend = FakeTorino()
+    statevector_sampler = BackendSamplerV2(backend=backend, 
+                                        options={'default_shots': num_shots})
+
+
+
+    # Execute the quantum circuit with measurements
+    result = statevector_sampler.run([quantum_circuit.reverse_bits()]).result()
+
+    # Output the measurement results
+    if hasattr(result[0].data,"c"):
+        shots_dict = result[0].data.c.get_counts()
+    elif hasattr(result[0].data,"meas"):
+        shots_dict = result[0].data.meas.get_counts()
+    else:
+        raise ValueError("Only default register names are supported.")
+    return shots_dict
+
 
 def sample_from_circuit(quantum_circuit: QuantumCircuit, num_shots:int) -> dict:
     """
@@ -28,7 +62,12 @@ def sample_from_circuit(quantum_circuit: QuantumCircuit, num_shots:int) -> dict:
     result = statevector_sampler.run([quantum_circuit.reverse_bits()]).result()
 
     # Output the measurement results
-    shots_dict = result[0].data.c.get_counts()
+    if hasattr(result[0].data,"c"):
+        shots_dict = result[0].data.c.get_counts()
+    elif hasattr(result[0].data,"meas"):
+        shots_dict = result[0].data.meas.get_counts()
+    else:
+        raise ValueError("Only default register names are supported.")
     return shots_dict
 
 def measure_to_probability(measurements: dict) -> dict:
