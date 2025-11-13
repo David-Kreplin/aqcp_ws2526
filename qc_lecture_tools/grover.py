@@ -1,8 +1,8 @@
 import numpy as np
 from qiskit import QuantumCircuit
 
-
 from .statevector import sv_array
+
 
 def print_grover_states(quantum_circuit, num_data_qubits, cutoff=None):
     """
@@ -28,9 +28,9 @@ def print_grover_states(quantum_circuit, num_data_qubits, cutoff=None):
         if np.abs(amplitude) > cutoff:
             bitstr = format(i, f'0{num_qubits}b')
             if num_qubits != num_data_qubits:
-                print(f"{bitstr[:num_data_qubits]} {bitstr[num_data_qubits:]}: {np.real(amplitude):5.2f}")
+                print(f"{bitstr[:num_data_qubits]} {bitstr[num_data_qubits:]}: {np.real(amplitude):5.2f}  Wahrscheinlichkeit: {np.square(np.real(amplitude)):5.2f}")
             else:
-                print(f"{bitstr}: {np.real(amplitude):5.2f} ")
+                print(f"{bitstr}: {np.real(amplitude):5.2f}  Wahrscheinlichkeit: {np.square(np.real(amplitude)):5.2f}")
 
 
 def initial_state(num_data_qubits, num_ancilla_qubits):
@@ -148,3 +148,84 @@ def oracle_sudoku():
     qc_oracle.compose(qc_compute.inverse(), inplace=True)
 
     return qc_oracle
+
+
+def grover_ones(num_data_qubits: int, num_steps: int) -> QuantumCircuit:
+    """Implementation of the Grover algorithm that finds the |1...11> state
+
+    Args:
+        num_data_qubits (int): Number of data qubits
+        num_steps (int): Number of Grover-steps
+
+    Returns:
+        Quantum circuit of the oracle
+    """
+
+    # Create a quantum circuit with the given number of data qubits
+    quantum_circuit = QuantumCircuit(num_data_qubits)
+
+    # Prepare the initial uniform superposition (usually |s⟩ state)
+    quantum_circuit.compose(initial_state(num_data_qubits, 0), inplace=True)
+
+    # Define the control qubits (all except the last qubit, which acts as target)
+    control_qubits = list(range(num_data_qubits - 1))
+
+    # Repeat the Grover iteration (oracle + amplitude amplification)
+    for i in range(num_steps):
+
+        # --- Oracle step ---
+        # The oracle marks the "solution" state by flipping its phase.
+        # Here represented by a controlled multi-qubit X (inversion) gate.
+        quantum_circuit.h(num_data_qubits - 1)
+        quantum_circuit.mcx(control_qubits, num_data_qubits - 1)
+        quantum_circuit.h(num_data_qubits - 1)
+
+        # --- Diffusion (Amplitude amplification) step ---
+        # Reflects the state vector about the average amplitude.
+        quantum_circuit.compose(
+            amplitude_amplification(num_data_qubits, 0), inplace=True
+        )
+
+    # Return the constructed Grover circuit
+    return quantum_circuit
+
+
+def grover_ones_ancilla(num_data_qubits, num_steps):
+    """Implementation of the Grover algorithm that finds the |1...11> state using an Ancilla-Qubit
+
+    Args:
+        num_data_qubits (int): Number of data qubits
+        num_steps (int): Number of Grover-steps
+
+    Returns:
+        Quantum circuit of the oracle
+    """
+
+    # Create a quantum circuit with one extra ancilla qubit
+    quantum_circuit = QuantumCircuit(num_data_qubits + 1)
+
+    # Prepare the initial state, e.g., uniform superposition of all data qubits
+    # and the ancilla initialized to |1⟩ (controlled oracle requires ancilla)
+    quantum_circuit.compose(initial_state(num_data_qubits, 1), inplace=True)
+
+    # Define the control qubits (all data qubits)
+    control_qubits = list(range(num_data_qubits))
+
+    # Perform the specified number of Grover iterations
+    for i in range(num_steps):
+
+        # --- Oracle step ---
+        # Flip the phase of the |11...1> state using the ancilla qubit.
+        # The sequence mcx -> z -> mcx implements a conditional phase inversion.
+        quantum_circuit.mcx(control_qubits, num_data_qubits)  # Controlled-X on ancilla
+        quantum_circuit.z(num_data_qubits)  # Phase flip on ancilla
+        quantum_circuit.mcx(control_qubits, num_data_qubits)  # Undo the controlled-X
+
+        # --- Diffusion (Amplitude amplification) step ---
+        # Reflects the state about the mean amplitude to amplify the marked state.
+        quantum_circuit.compose(
+            amplitude_amplification(num_data_qubits, 1), inplace=True
+        )
+
+    # Return the constructed Grover circuit with ancilla
+    return quantum_circuit
