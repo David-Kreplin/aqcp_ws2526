@@ -1,11 +1,15 @@
 import numpy as np
 from qiskit import QuantumCircuit
-from qiskit.primitives import BackendSamplerV2
+from qiskit_ibm_runtime import SamplerV2
 from qiskit_aer import Aer
 from qiskit_ibm_runtime.fake_provider import FakeTorino
+from qiskit.primitives import BackendSamplerV2
+from qiskit.compiler import transpile
 
 
-def sample_from_circuit_hardware(quantum_circuit: QuantumCircuit, num_shots:int) -> dict:
+def sample_from_circuit_hardware(
+    quantum_circuit: QuantumCircuit, num_shots: int
+) -> dict:
     """
     Executes a quantum circuit with a specified number of measurements (shots)
     and returns the measurement results as a dictionary.
@@ -20,25 +24,12 @@ def sample_from_circuit_hardware(quantum_circuit: QuantumCircuit, num_shots:int)
 
     # Initialize the sampler with 100 measurements (shots)
     backend = FakeTorino()
-    statevector_sampler = BackendSamplerV2(backend=backend, 
-                                        options={'default_shots': num_shots})
+    return sample_from_circuit_backend(quantum_circuit, num_shots, backend)
 
 
-
-    # Execute the quantum circuit with measurements
-    result = statevector_sampler.run([quantum_circuit.reverse_bits()]).result()
-
-    # Output the measurement results
-    if hasattr(result[0].data,"c"):
-        shots_dict = result[0].data.c.get_counts()
-    elif hasattr(result[0].data,"meas"):
-        shots_dict = result[0].data.meas.get_counts()
-    else:
-        raise ValueError("Only default register names are supported.")
-    return shots_dict
-
-
-def sample_from_circuit(quantum_circuit: QuantumCircuit, num_shots:int) -> dict:
+def sample_from_circuit_backend(
+    quantum_circuit: QuantumCircuit, num_shots: int, backend
+) -> dict:
     """
     Executes a quantum circuit with a specified number of measurements (shots)
     and returns the measurement results as a dictionary.
@@ -52,28 +43,59 @@ def sample_from_circuit(quantum_circuit: QuantumCircuit, num_shots:int) -> dict:
     """
 
     # Initialize the sampler with 100 measurements (shots)
-    backend = Aer.get_backend('aer_simulator')
-    statevector_sampler = BackendSamplerV2(backend=backend, 
-                                        options={'default_shots': num_shots})
+    statevector_sampler = SamplerV2(mode=backend, options={"default_shots": num_shots})
 
-
+    quantum_circuit_trans = transpile(quantum_circuit, backend=backend)
 
     # Execute the quantum circuit with measurements
-    result = statevector_sampler.run([quantum_circuit.reverse_bits()]).result()
+    result = statevector_sampler.run([quantum_circuit_trans.reverse_bits()]).result()
 
     # Output the measurement results
-    if hasattr(result[0].data,"c"):
+    if hasattr(result[0].data, "c"):
         shots_dict = result[0].data.c.get_counts()
-    elif hasattr(result[0].data,"meas"):
+    elif hasattr(result[0].data, "meas"):
         shots_dict = result[0].data.meas.get_counts()
     else:
         raise ValueError("Only default register names are supported.")
     return shots_dict
 
+
+def sample_from_circuit(quantum_circuit: QuantumCircuit, num_shots: int) -> dict:
+    """
+    Executes a quantum circuit with a specified number of measurements (shots)
+    and returns the measurement results as a dictionary.
+
+    Args:
+        quantum_circuit (QuantumCircuit): The quantum circuit to be executed.
+        num_shots (int): The number of measurements (shots) to be performed.
+
+    Returns:
+        dict: A dictionary with the measurement results.
+    """
+
+    # Initialize the sampler with 100 measurements (shots)
+    backend = Aer.get_backend("aer_simulator")
+    statevector_sampler = BackendSamplerV2(
+        backend=backend, options={"default_shots": num_shots}
+    )
+
+    # Execute the quantum circuit with measurements
+    result = statevector_sampler.run([quantum_circuit.reverse_bits()]).result()
+
+    # Output the measurement results
+    if hasattr(result[0].data, "c"):
+        shots_dict = result[0].data.c.get_counts()
+    elif hasattr(result[0].data, "meas"):
+        shots_dict = result[0].data.meas.get_counts()
+    else:
+        raise ValueError("Only default register names are supported.")
+    return shots_dict
+
+
 def measure_to_probability(measurements: dict) -> dict:
     """
     Takes the measurement counts as a dictionary and converts them to probabilities.
-    
+
     Args:
         measurements (dict): Dictionary with states as keys ans number of measurements
             as values
@@ -81,13 +103,14 @@ def measure_to_probability(measurements: dict) -> dict:
     Returns:
         Dictionary converted to measured probabilities
     """
-    if not isinstance(measurements,dict):
+    if not isinstance(measurements, dict):
         raise ValueError("Inputted measurements have to be a dictionary!")
     probs = {}
     total_counts = sum(measurements.values())
     for state in measurements.keys():
         probs[state] = measurements[state] / total_counts
     return probs
+
 
 def sort_dict(shots_dict: dict):
     """
@@ -102,7 +125,8 @@ def sort_dict(shots_dict: dict):
 
     return dict(sorted(shots_dict.items()))
 
-def get_quasi_probs(quantum_circuit: QuantumCircuit, num_shots:int) -> np.ndarray:
+
+def get_quasi_probs(quantum_circuit: QuantumCircuit, num_shots: int) -> np.ndarray:
     """
     Executes a quantum circuit with a specified number of measurements (shots)
     and returns the quasi-probabilities as an array.
@@ -119,6 +143,7 @@ def get_quasi_probs(quantum_circuit: QuantumCircuit, num_shots:int) -> np.ndarra
     probs_array = convert_to_probs(shots_dict, quantum_circuit.num_qubits)
     return probs_array
 
+
 def convert_to_probs(shots_dict: dict, num_qubits: int) -> np.ndarray:
     """
     Converts a dictionary with measurement results into an array of probabilities.
@@ -131,7 +156,7 @@ def convert_to_probs(shots_dict: dict, num_qubits: int) -> np.ndarray:
         np.ndarray: An array with the probabilities.
     """
 
-    num_states = 2 ** num_qubits
+    num_states = 2**num_qubits
     probs_array = [0.0] * num_states
 
     for bitstring, count in shots_dict.items():
@@ -143,3 +168,27 @@ def convert_to_probs(shots_dict: dict, num_qubits: int) -> np.ndarray:
         probs_array = [count / total_counts for count in probs_array]
 
     return np.array(probs_array)
+
+
+def measurements_to_probabilities(measurements: dict) -> dict:
+    """
+    Converts measurement counts to probabilities, both stored in dictionaries.
+
+    Args:
+        measurements (dict): A dictionary with measurement results as keys and their counts as values.
+
+    Returns:
+        dict: A dictionary with measurement results as keys and their probabilities as values.
+    """
+    probabilities = {}
+
+    # Compute the total number of shots
+    total_shots = 0
+    for m in measurements.keys():
+        total_shots += measurements[m]
+
+    # Compute probabilities for each found basis state
+    for m in measurements.keys():
+        probabilities[m] = measurements[m] / total_shots
+
+    return probabilities

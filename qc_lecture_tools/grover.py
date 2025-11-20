@@ -26,11 +26,15 @@ def print_grover_states(quantum_circuit, num_data_qubits, cutoff=None):
         print(f"Gefundene Basiszustände mit Amplituden größer als {cutoff}:")
     for i, amplitude in enumerate(statevector):
         if np.abs(amplitude) > cutoff:
-            bitstr = format(i, f'0{num_qubits}b')
+            bitstr = format(i, f"0{num_qubits}b")
             if num_qubits != num_data_qubits:
-                print(f"{bitstr[:num_data_qubits]} {bitstr[num_data_qubits:]}: {np.real(amplitude):5.2f}  Wahrscheinlichkeit: {np.square(np.real(amplitude)):5.2f}")
+                print(
+                    f"{bitstr[:num_data_qubits]} {bitstr[num_data_qubits:]}: {np.real(amplitude):5.2f}  Wahrscheinlichkeit: {np.square(np.real(amplitude)):5.2f}"
+                )
             else:
-                print(f"{bitstr}: {np.real(amplitude):5.2f}  Wahrscheinlichkeit: {np.square(np.real(amplitude)):5.2f}")
+                print(
+                    f"{bitstr}: {np.real(amplitude):5.2f}  Wahrscheinlichkeit: {np.square(np.real(amplitude)):5.2f}"
+                )
 
 
 def initial_state(num_data_qubits, num_ancilla_qubits):
@@ -128,7 +132,7 @@ def oracle_sudoku():
     qc_compute.cx(2, 8)
     qc_compute.x(8)
 
-    # Ancilla 6 (Qubit 9) überprüft q1 == q3 
+    # Ancilla 6 (Qubit 9) überprüft q1 == q3
     qc_compute.cx(1, 9)
     qc_compute.cx(3, 9)
     qc_compute.x(9)
