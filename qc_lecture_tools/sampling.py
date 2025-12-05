@@ -2,7 +2,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit_ibm_runtime import SamplerV2
 from qiskit_aer import Aer
-from qiskit_ibm_runtime.fake_provider import FakeTorino
+from qiskit_ibm_runtime.fake_provider import FakeWashingtonV2
 from qiskit.primitives import BackendSamplerV2
 from qiskit.compiler import transpile
 
@@ -23,7 +23,7 @@ def sample_from_circuit_hardware(
     """
 
     # Initialize the sampler with 100 measurements (shots)
-    backend = FakeTorino()
+    backend = FakeWashingtonV2()
     return sample_from_circuit_backend(quantum_circuit, num_shots, backend)
 
 
@@ -44,8 +44,12 @@ def sample_from_circuit_backend(
 
     # Initialize the sampler with 100 measurements (shots)
     statevector_sampler = SamplerV2(mode=backend, options={"default_shots": num_shots})
-
-    quantum_circuit_trans = transpile(quantum_circuit, backend=backend)
+    quantum_circuit_trans = transpile(
+        quantum_circuit,
+        backend=backend,
+        basis_gates=backend.operation_names,
+        coupling_map=backend.coupling_map,
+    )
 
     # Execute the quantum circuit with measurements
     result = statevector_sampler.run([quantum_circuit_trans.reverse_bits()]).result()
